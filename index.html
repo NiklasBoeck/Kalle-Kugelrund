@@ -502,16 +502,16 @@ const Music={timer:null,next:0,step:0,song:0,bpm:150,
     this.timer=setInterval(()=>this.tick(),25) },
   stop(fade=.3){ if(!ac)return; musicBus.gain.setTargetAtTime(0,ac.currentTime,fade); clearInterval(this.timer); this.timer=null },
   note(d,s){const sc=s.scale, o=Math.floor(d/7), k=((d%7)+7)%7; return s.root+sc[k]+12*o},
-  // 48-bar cycle: 32 bars hard techno (distorted kick, rumble, acid, claps, breaks with riser), then 16 bars rock (power-chord riffs, backbeat)
+  // 16-bar cycle: 8 bars hard techno (distorted kick, rumble, acid, claps, riser), then 8 bars rock (power-chord riffs, backbeat), crashes every 4 bars
   tick(){
     if(this.next<ac.currentTime-.2)this.next=ac.currentTime+.02;
     while(this.next<ac.currentTime+.15){
       if(this.step%64===0){ this.song=biomeAt(dist*M_PER_UNIT).i }
       const s=SONGS[this.song], st=this.step, t0=this.next, dl=t0-ac.currentTime;
-      const i16=st%16, bar=Math.floor(st/16), cyc=bar%48, tr=boy.mode==='tiny'?12:0, root=s.root-12+tr;
-      if(i16===0&&(cyc===0||cyc===16||cyc===32)&&st>0){ noise(1.6,.22,'highpass',6000,2500,dl,musicBus); techKick(t0,1.2) } // crash on every new part
-      if(cyc>=32) this.rock(st,t0,dl,i16,cyc-32,root);
-      else this.techno(st,t0,dl,i16,bar,cyc%16===15,root);
+      const i16=st%16, bar=Math.floor(st/16), cyc=bar%16, tr=boy.mode==='tiny'?12:0, root=s.root-12+tr;
+      if(i16===0&&cyc%4===0&&st>0){ noise(1.6,.24,'highpass',6000,2500,dl,musicBus); noise(.5,.16,'bandpass',4200,3000,dl,musicBus,3); if(cyc%8===0)techKick(t0,1.2) } // crash (and a trashy china on top)
+      if(cyc>=8) this.rock(st,t0,dl,i16,cyc-8,root);
+      else this.techno(st,t0,dl,i16,bar,cyc===7,root);
       this.bpm=Math.min(190,(166+level*3)*(boy.mode==='jet'?1.08:1)*(boy.mode==='clock'?.75:1));
       this.next+=60/this.bpm/4; this.step++;
     }
@@ -530,7 +530,7 @@ const Music={timer:null,next:0,step:0,song:0,bpm:150,
     if(bar%2===0&&(i16===0||i16===6||i16===10)&&!brk) [0,3,7].forEach(k=>{const f=mtof(root+12+k); const o=tone(f,f,.1,'sawtooth',.04,dl,musicBus); if(o){const g2=ac.createGain(); g2.gain.value=.6; o.connect(g2); g2.connect(echo)}});
   },
   rock(st,t0,dl,i16,rb,root){
-    const fill=rb===15, riff=RIFFS[(Math.floor(rb/2)+this.song)%RIFFS.length], n=riff[i16];
+    const fill=rb===7, riff=RIFFS[(Math.floor(rb/2)+this.song)%RIFFS.length], n=riff[i16];
     if(n!==null&&!(fill&&i16>=8)) rockGuitar(t0,mtof(root-12+Math.abs(n)),n<0||Object.is(n,-0),60/this.bpm*(riff[(i16+1)%16]===null?.5:.24));
     if(!fill){
       if(i16===0||i16===7||i16===8||i16===10) techKick(t0,1);
