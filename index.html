@@ -93,6 +93,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
       <span><i style="background:#9aa3ad"></i>Jetpack: halten = hoch</span>
       <span><i style="background:#e8453c"></i>Zwerg: Mini-Kalle</span>
       <span><i style="background:#c98a56"></i>Känguru: Riesensprünge</span>
+      <span><i style="background:#5fbd52"></i>Spinat: Riesen-Kalle</span>
+      <span><i style="background:#e8453c"></i>Bohnen: Pups-Turbo in der Luft</span>
+      <span><i style="background:#ff6b5e"></i>Magnet: Donuts fliegen zu dir</span>
+      <span><i style="background:#ff9ad5"></i>Kaugummi: Schutzblase</span>
     </div>
     <button class="btn" id="startBtn">Los geht's!</button>
     <p class="credit">Gegner, Boden und Geräusche: Kenney (kenney.nl), CC0</p>
@@ -175,7 +179,7 @@ let t=0, dist=0, speed=0, bonus=0, donuts=0;
 let obstacles=[], items=[], decor=[], near=[], tufts=[], fore=[], parts=[], clouds=[], stars=[], pops=[], flock=null, balloon=null;
 let nextSpawn=0, lastBiome=0, milestone=100, shake=0, flash=0, powerIn=0, lastPower='', bubble=null;
 const boy={x:120,y:GY,vy:0,ground:true,duck:false,phase:0,squash:0,blink:0,dead:false,coyote:0,jumpHeld:false,
-  mode:'normal',modeT:0,modeMax:1,inv:0,scale:1,thrust:false,
+  mode:'normal',modeT:0,modeMax:1,inv:0,scale:1,thrust:false,shield:false,airJumps:0,
   eyeX:0,eyeY:0,eyeVX:0,eyeVY:0,capY:0,capVY:0,wob:0,wobV:0,munch:0,streak:0,streakT:0,wave:0};
 let input={jump:false,duck:false,any:false,jumpBuffer:0};
 
@@ -185,7 +189,7 @@ for(let i=0;i<6;i++) clouds.push({x:rand(0,900),y:rand(30,140),s:rand(.6,1.3),v:
 function reset(){
   t=0;dist=0;speed=270;bonus=0;donuts=0;obstacles=[];items=[];parts=[];decor=[];near=[];tufts=[];fore=[];pops=[];bubble=null;
   nextSpawn=W*0.9; lastBiome=0; milestone=100; shake=0; flash=0; powerIn=rand(9,13); lastPower='';
-  Object.assign(boy,{y:GY,vy:0,ground:true,duck:false,phase:0,squash:0,dead:false,coyote:0,jumpHeld:false,mode:'normal',modeT:0,inv:0,scale:1,thrust:false,
+  Object.assign(boy,{y:GY,vy:0,ground:true,duck:false,phase:0,squash:0,dead:false,coyote:0,jumpHeld:false,mode:'normal',modeT:0,inv:0,scale:1,thrust:false,shield:false,airJumps:0,
     eyeX:0,eyeY:0,eyeVX:0,eyeVY:0,capY:0,capVY:0,wob:0,wobV:0,munch:0,streak:0,streakT:0});
   input.jumpBuffer=0;
   for(let x=0;x<W+200;x+=rand(110,240)) decor.push(makeDecor(x,0));
@@ -204,7 +208,11 @@ const MODES={
   jet: {dur:6.5, name:'Jetpack!', say:'Halten = hoch!'},
   tiny:{dur:9,   name:'Mini-Kalle!', say:'Huch, bin ich klein!'},
   roo: {dur:9,   name:'Känguru!', say:'Boing boing!'},
+  big: {dur:7,   name:'Riesen-Kalle!', say:'Spinat macht stark!'},
+  beans:{dur:10, name:'Bohnen-Turbo!', say:'Oh oh, mein Bauch …'},
+  magnet:{dur:10,name:'Donut-Magnet!', say:'Kommt zu Papa!'},
 };
+const POWERS=['jet','tiny','roo','big','beans','magnet','gum'];
 // jump physics per mode: v = take-off speed, gu = gravity while rising & held, gd = gravity falling, air = full jump time (for fair gaps)
 const PHYS={normal:{v:735,gu:1900,gd:2400,air:.68},tiny:{v:470,gu:900,gd:650,air:1.2},roo:{v:900,gu:2100,gd:2500,air:.9}};
 function phys(){return PHYS[boy.mode]||PHYS.normal}
@@ -243,9 +251,9 @@ function spawnObstacle(){
   const d=difficulty(), b=biomeAt(dist*M_PER_UNIT).i;
   // power-up instead of an obstacle every so often
   if(powerIn<=0 && boy.mode==='normal'){
-    const type=pick(['jet','tiny','roo'].filter(k=>k!==lastPower)); lastPower=type;
+    const type=pick(POWERS.filter(k=>k!==lastPower&&!(k==='gum'&&boy.shield))); lastPower=type;
     items.push({type,x:W+40,y:Math.random()<.5?GY-30:GY-92,r:17,ph:0});
-    powerIn=rand(16,26); return;
+    powerIn=rand(13,21); return;
   }
   const airChance = t<10 ? 0 : 0.2+0.25*d;
   let o;
@@ -351,6 +359,7 @@ const sfx={
   click:()=>play('click',.7),
   toot:()=>{ if(!ac)return; const o=tone(rand(95,130),70,.32,'sawtooth',.16); if(o){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=24;lg.gain.value=30;l.connect(lg);lg.connect(o.frequency);l.start();l.stop(ac.currentTime+.34)}
     noise(.3,.05,'lowpass',500,150)},
+  pop:()=>{play('bump',.7,1.4)||tone(900,200,.12,'triangle',.15); noise(.08,.1,'highpass',3000,3000)},
   burp:()=>{ if(!ac)return; const o=tone(110,70,.5,'sawtooth',.18); if(o){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=38;lg.gain.value=25;l.connect(lg);lg.connect(o.frequency);l.start();l.stop(ac.currentTime+.52)}},
   hit:()=>{play('hurt',.9)||tone(420,90,.3,'square',.12); noise(.3,.15,'lowpass',3000,200);
     // sad trombone
@@ -464,6 +473,7 @@ function start(){
 }
 const OUCH=['Autsch!','Aua!','Uff!','Menno!','Hoppla!','Mein Popo!','Wer hat das da hingestellt?','Sterne!'];
 function gameOver(){
+  boy.shield=false;
   state='over'; boy.dead=true; boy.vy=-420; boy.ground=false; boy.capVY=-380; jolt(200,120); shake=0.35; flash=1; sfx.hit(); jetSound(false); Music.stop(.15);
   if(boy.mode!=='normal'){boy.mode='normal';boy.scale=1}
   const s=score(); const isNew=s>best;
@@ -493,6 +503,7 @@ function jolt(y,x=0,capUp=0){boy.eyeVY+=y;boy.eyeVX+=x;boy.wobV+=y*.04;if(capUp)
 function setMode(m){
   const prev=boy.mode;
   if(prev==='tiny'&&m!=='tiny')sfx.grow();
+  if(prev==='big'&&m!=='big')sfx.shrink();
   boy.mode=m;
   if(m==='normal'){boy.inv=1.3; jetSound(false); if(prev==='jet'){nextSpawn=Math.max(nextSpawn,speed*1.2)} return}
   boy.modeT=boy.modeMax=MODES[m].dur;
@@ -500,6 +511,7 @@ function setMode(m){
   say(MODES[m].say,2); showBiome(MODES[m].name); flash=.5;
   for(let i=0;i<18;i++)parts.push({k:'spark',x:boy.x,y:boy.y-30,vx:rand(-160,160),vy:rand(-260,-40),life:.8,max:.8,col:pick(['#ffd84a','#ff6b8a','#ffffff','#7fd6ff'])});
   if(m==='jet'){boy.ground=false;boy.vy=-300;nextSpawn=speed*0.8}
+  if(m==='big')sfx.grow();
 }
 
 // ---------- hitboxes ----------
@@ -533,7 +545,7 @@ function update(dt){
   // power timers
   boy.inv=Math.max(0,boy.inv-dt);
   if(playing&&boy.mode!=='normal'){boy.modeT-=dt; if(boy.modeT<=0)setMode('normal')}
-  boy.scale=lerp(boy.scale,boy.mode==='tiny'?0.5:1,Math.min(1,dt*8));
+  boy.scale=lerp(boy.scale,boy.mode==='tiny'?0.5:boy.mode==='big'?1.7:1,Math.min(1,dt*8));
 
   // Kalle
   if(!boy.dead){
@@ -552,6 +564,12 @@ function update(dt){
         const P=phys();
         input.jumpBuffer-=dt;
         boy.coyote = boy.ground?0.09:boy.coyote-dt;
+        if(boy.ground) boy.airJumps=2;
+        if(boy.mode==='beans' && input.jumpBuffer>0 && boy.coyote<=0 && boy.airJumps>0){
+          boy.airJumps--; boy.vy=-640; input.jumpBuffer=0; boy.jumpHeld=true; sfx.toot(); jolt(90,-40,140); boy.squash=-.5;
+          for(let i=0;i<10;i++)parts.push({k:'puff',x:boy.x-6+rand(-6,6),y:boy.y-6,vx:rand(-120,-30),vy:rand(40,160),life:.8,max:.8,r:rand(3,7)});
+          if(Math.random()<.4)say(pick(['Pffft!','Turbo-Pups!','Bohnen-Power!','Tschuldigung!']),.9);
+        }
         if(input.jumpBuffer>0 && boy.coyote>0){
           boy.vy=-P.v; boy.ground=false; boy.coyote=0; input.jumpBuffer=0; boy.jumpHeld=true;
           boy.mode==='roo'?sfx.boing():sfx.jump(); boy.squash=-0.7; jolt(60,0,boy.mode==='roo'?260:170);
@@ -607,11 +625,13 @@ function update(dt){
   }
   for(const o of obstacles){
     o.x-=mv; o.ph+=dt;
+    if(o.kicked){o.x+=o.kvx*dt; o.y+=o.kvy*dt; o.kvy+=1600*dt; o.spin+=dt*12}
     if(o.kind==='tumbleweed')o.rot-=mv/17;
     if(o.vy)o.y+=o.vy*dt;
   }
-  obstacles=obstacles.filter(o=>o.x+o.w>-80);
-  for(const it of items){it.x-=mv;it.ph+=dt}
+  obstacles=obstacles.filter(o=>o.x+o.w>-80&&o.y<H+80);
+  for(const it of items){it.x-=mv;it.ph+=dt;
+    if(boy.mode==='magnet'&&it.type==='donut'){const dx=boy.x-it.x, dy=boy.y-28-it.y, d=Math.hypot(dx,dy); if(d<260){const v=Math.min(d,(900-d*2)*dt); it.x+=dx/d*v; it.y+=dy/d*v}}}
 
   // collisions
   if(playing){
@@ -619,7 +639,14 @@ function update(dt){
     if(boy.inv<=0) for(const o of obstacles){
       const ix=o.air?6:5, iy=4;
       const ob={x:o.x+ix,y:o.y+iy,w:o.w-ix*2,h:o.h-iy*(o.air?2:1)};
-      if(hb.x<ob.x+ob.w&&hb.x+hb.w>ob.x&&hb.y<ob.y+ob.h&&hb.y+hb.h>ob.y){gameOver();break}
+      if(o.kicked)continue;
+      if(hb.x<ob.x+ob.w&&hb.x+hb.w>ob.x&&hb.y<ob.y+ob.h&&hb.y+hb.h>ob.y){
+        if(boy.mode==='big'){ // giant Kalle just kicks it away
+          o.kicked=true; o.kvx=rand(500,750); o.kvy=-rand(450,650); o.spin=0; o.air=true; sfx.land(true); shake=Math.max(shake,.12); bonus+=5;
+          pop(o.x+o.w/2,o.y-6,pick(['Bumm!','Weg da!','Tschüss!','Zack!']),'#fff8ec'); jolt(-80); continue }
+        if(boy.shield){ boy.shield=false; boy.inv=1.2; sfx.pop(); say(pick(['Plopp!','Puh, Glück gehabt!','Meine Blase!']),1.2);
+          for(let i=0;i<14;i++)parts.push({k:'spark',x:boy.x,y:boy.y-30,vx:rand(-200,200),vy:rand(-250,50),life:.6,max:.6,col:pick(['#ff9ad5','#ffc2e6','#fff'])}); break }
+        gameOver();break}
     }
     if(state==='play') for(const it of items){
       if(it.got)continue;
@@ -631,6 +658,7 @@ function update(dt){
           if(boy.streak>=6){boy.streak=0; setTimeout(()=>{if(state==='play'){sfx.burp();say(pick(['Rülps!','Bäuerchen!','Oh, Entschuldigung!']),1.3)}},350)}
           else if(Math.random()<.14)say(pick(['Mmmh!','Lecker!','Nom nom!','Noch einen!','Mampf!','Donut-Alarm!']),1);
           for(let i=0;i<5;i++)parts.push({k:'spark',x:it.x,y:it.y,vx:rand(-90,90),vy:rand(-150,-30),life:.4,max:.4,col:pick(['#f3a6c8','#ffd84a','#7fd6ff'])})}
+        else if(it.type==='gum'){boy.shield=true; sfx.power(); say('Blubb!',1.2); flash=.4}
         else setMode(it.type);
       }
     }
@@ -856,6 +884,7 @@ function drawDecorItem(d){
   c.restore();
 }
 function drawNear(b){
+  c.globalAlpha=.72; // props sit back so the real obstacles read first
   for(const d of near){
     const x=d.x, s=d.s;
     if(d.type==='k:torch'){ const f=((performance.now()/160+d.seed*9)|0)%2?'torch_on_a':'torch_on_b'; light(x,GY-30*s*.8,40,.7); sprB(f,x,GY+2,s*.8); continue }
@@ -876,6 +905,7 @@ function drawNear(b){
     }
     c.restore();
   }
+  c.globalAlpha=1;
 }
 // ground: a row of Kenney terrain tiles (the area changes tile by tile), with the old flowers and tufts on top
 const TERRAIN=['grass','dirt','sand','snow'], T=64*K;
@@ -902,6 +932,10 @@ function drawFore(b){
 
 // ---------- drawing: obstacles ----------
 function drawObstacle(o){
+  if(!o.kicked) return drawObstacleBody(o);
+  const cx=o.x+o.w/2, cy=o.y+o.h/2; c.save(); c.translate(cx,cy); c.rotate(o.spin); c.translate(-cx,-cy); drawObstacleBody(o); c.restore();
+}
+function drawObstacleBody(o){
   const d=OBS[o.kind]; if(!d) return drawHandObstacle(o);
   const fr=d.f[d.f.length>1&&((o.ph*(d.fuse?6:8))|0)%2?1:0];
   if(!o.air){c.fillStyle='rgba(0,0,0,.15)';ell(o.x+o.w/2,o.y+o.h+1,o.w/2+2,3.5)}
@@ -1032,6 +1066,20 @@ function drawItem(it){
       c.fillStyle='#f6c9a0'; circ(0,-3,6); outline(1.5); c.fillStyle='#fff'; c.beginPath(); c.moveTo(-6,-2); c.quadraticCurveTo(0,14,6,-2); c.fill(); outline(1.5);
       c.fillStyle='#e8453c'; c.beginPath(); c.moveTo(-8,-6); c.quadraticCurveTo(-2,-26,8,-22); c.quadraticCurveTo(4,-14,8,-6); c.closePath(); c.fill(); outline(1.8);
       c.fillStyle=OUT; circ(-2,-4,1.1); circ(2.5,-4,1.1); c.fillStyle='#ff9a8a'; circ(0,-1,2); }
+    else if(it.type==='big'){ // spinach can
+      c.fillStyle='#5fbd52'; rr(-9,-11,18,22,3); c.fill(); outline(2); c.fillStyle='#d9e4f7'; rr(-9,-13,18,4,2); c.fill(); outline(1.5); rr(-9,9,18,4,2); c.fill(); outline(1.5);
+      c.fillStyle='#2f7a2a'; c.beginPath(); c.ellipse(0,-1,5,7,.5,0,TAU); c.fill(); c.strokeStyle='#bfe8a8'; c.lineWidth=1; c.beginPath(); c.moveTo(-3,3); c.lineTo(3,-5); c.stroke(); }
+    else if(it.type==='beans'){ // can of beans
+      c.fillStyle='#e8453c'; rr(-9,-11,18,22,3); c.fill(); outline(2); c.fillStyle='#d9e4f7'; rr(-9,-13,18,4,2); c.fill(); outline(1.5);
+      c.fillStyle='#fff8ec'; rr(-7,-5,14,10,2); c.fill(); c.fillStyle='#8a4a2a'; ell(-3,0,3,2,.3); ell(3,0,3,2,-.3); ell(0,-2.5,2.6,1.8);
+      c.fillStyle='rgba(190,215,120,.8)'; circ(10,-12+Math.sin(it.ph*5)*2,3); circ(13,-17,2); }
+    else if(it.type==='magnet'){ // horseshoe magnet
+      c.save(); c.rotate(.3); c.strokeStyle=OUT; c.lineWidth=11; c.beginPath(); c.arc(0,-1,8,Math.PI,0,false); c.lineTo(8,9); c.moveTo(-8,9); c.lineTo(-8,-1); c.stroke();
+      c.strokeStyle='#e8453c'; c.lineWidth=7; c.beginPath(); c.arc(0,-1,8,Math.PI,0,false); c.lineTo(8,6); c.moveTo(-8,6); c.lineTo(-8,-1); c.stroke();
+      c.fillStyle='#d9e4f7'; rr(-11.5,5,7,6,1); c.fill(); outline(1.5); rr(4.5,5,7,6,1); c.fill(); outline(1.5); c.restore(); }
+    else if(it.type==='gum'){ // bubble gum bubble
+      c.fillStyle='#ff9ad5'; circ(0,-2,11+Math.sin(it.ph*5)); outline(2); c.fillStyle='rgba(255,255,255,.7)'; ell(-4,-6,3.5,2.2,-.5);
+      c.fillStyle='#f6c9a0'; ell(0,11,7,3); outline(1.4); }
     else if(it.type==='roo'){ // kangaroo head
       c.fillStyle='#c98a56'; ell(-7,-12,4,9,-.3); outline(1.8); ell(7,-12,4,9,.3); outline(1.8); c.fillStyle='#f0b5a0'; ell(-7,-12,2,5,-.3); ell(7,-12,2,5,.3);
       c.fillStyle='#c98a56'; ell(0,0,11,10); outline(2); c.fillStyle='#e8c09a'; ell(3,5,7,5);
@@ -1094,6 +1142,8 @@ function capDraw(x,y,r,mode){
   c.fillStyle=CAP; rr(x+4,y-9,13,4,2); c.fill(); outline(1.8);
   c.fillStyle=SHIRT; circ(x-1,y-r-2,2.5);
   if(mode==='roo'){c.fillStyle='#c98a56';ell(x-5,y-r-6,3,7,-.4);outline(1.5);ell(x+3,y-r-7,3,7,.3);outline(1.5)}
+  if(mode==='magnet'){c.save();c.translate(x-1,y-r-6);c.strokeStyle=OUT;c.lineWidth=6;c.beginPath();c.arc(0,0,5,Math.PI,0);c.lineTo(5,5);c.moveTo(-5,5);c.lineTo(-5,0);c.stroke();
+    c.strokeStyle='#e8453c';c.lineWidth=3.5;c.beginPath();c.arc(0,0,5,Math.PI,0);c.lineTo(5,3);c.moveTo(-5,3);c.lineTo(-5,0);c.stroke();c.fillStyle='#d9e4f7';c.fillRect(-7,3,4,3);c.fillRect(3,3,4,3);c.restore()}
   if(mode==='jet'){c.fillStyle='#4a7fe0';rr(x-r+1,y-8,r*2-2,5,2);c.fill();outline(1.2);c.fillStyle='#bfe6ff';ell(x+5,y-5.5,3.5,2.5);outline(1)}
 }
 function body(bx,by,rx,ry,jig){
@@ -1176,6 +1226,10 @@ function drawBoy(){
     if(state==='play'&&speed>480&&!air&&Math.sin(ph*.5)>.6){c.fillStyle='#7fd6ff';c.beginPath();c.moveTo(-8,-60);c.quadraticCurveTo(-12,-53,-8,-52);c.quadraticCurveTo(-4,-53,-8,-60);c.fill()}
   }
   c.restore();
+  if(boy.shield&&!dead){ // chewing-gum bubble
+    const s2=boy.mode==='tiny'?.55:boy.mode==='big'?1.6:1, wob=Math.sin(performance.now()/180)*1.5, cy=y-(boy.mode==='roo'?40:boy.duck?18:30)*s2;
+    c.fillStyle='rgba(255,154,213,.22)'; ell(x+2,cy,(36+wob)*s2,(38-wob)*s2); c.strokeStyle='rgba(255,120,190,.75)'; c.lineWidth=2; c.stroke();
+    c.fillStyle='rgba(255,255,255,.6)'; ell(x-12*s2,cy-20*s2,7*s2,4*s2,-.6) }
   if(dead){ // dizzy stars circling his head
     const now=performance.now()/400;
     for(let i=0;i<3;i++){const a=now+i*TAU/3, sx=x-14+Math.cos(a)*16, sy=y-66+Math.sin(a)*5; starShape(sx,sy,4.5,a)}
@@ -1213,7 +1267,7 @@ function drawPowerBar(){
   if(boy.mode==='normal'||state!=='play')return;
   const x=W/2-70, y=50, w=140, f=clamp(boy.modeT/boy.modeMax,0,1);
   c.fillStyle='rgba(43,29,58,.5)'; rr(x,y,w,12,6); c.fill();
-  c.fillStyle=boy.mode==='jet'?'#7fd6ff':boy.mode==='tiny'?'#ff6b8a':'#ffb347'; rr(x+2,y+2,(w-4)*f,8,4); c.fill();
+  c.fillStyle={jet:'#7fd6ff',tiny:'#ff6b8a',roo:'#ffb347',big:'#5fbd52',beans:'#c98a56',magnet:'#e8453c'}[boy.mode]||'#ffb347'; rr(x+2,y+2,(w-4)*f,8,4); c.fill();
   c.strokeStyle='#fff8ec'; c.lineWidth=2; rr(x,y,w,12,6); c.stroke();
 }
 
@@ -1226,6 +1280,12 @@ function render(){
   { const hz=c.createLinearGradient(0,140,0,262); hz.addColorStop(0,'rgba(255,255,255,0)'); hz.addColorStop(1,col('skyB',b)); c.globalAlpha=.35; c.fillStyle=hz; c.fillRect(-20,140,W+40,122); c.globalAlpha=1 }
   drawDecor(b); drawNear(b); drawGround(b);
   for(const it of items)drawItem(it);
+  for(const o of obstacles){ // soft light halo so obstacles pop out from the scenery
+    if(o.kicked)continue;
+    const hang=o.y===0&&o.air, cx=o.x+o.w/2, cy=hang?o.h-14:o.y+o.h/2, r=Math.max(o.w,hang?28:o.h)*.62+10;
+    const g=c.createRadialGradient(cx,cy,r*.35,cx,cy,r); g.addColorStop(0,'rgba(255,252,235,'+(.42-darkNow*.12)+')'); g.addColorStop(1,'rgba(255,252,235,0)');
+    c.fillStyle=g; c.fillRect(cx-r,cy-r,r*2,r*2);
+  }
   for(const o of obstacles)drawObstacle(o);
   if(state==='play'&&speed>470){ const now=performance.now(); c.strokeStyle='rgba(255,255,255,.35)'; c.lineWidth=2; c.lineCap='round';
     for(let i=0;i<5;i++){const y=40+((i*71+now*.05)%230), x=(W+200)-((now*(1.2+i*.13))%(W+400)); c.beginPath(); c.moveTo(x,y); c.lineTo(x+60+i*10,y); c.stroke()} }
