@@ -1,5 +1,5 @@
 // Offline cache: app files and Kenney assets up front, fonts as they load.
-const CACHE = 'kalle-v16';
+const CACHE = 'kalle-v17';
 const SFX = ['jump','boing','coin','hurt','magic','gem','duck','power','shrink','grow','click','land','landhard',
   'step_grass0','step_grass1','step_grass2','step_concrete0','step_concrete1','step_concrete2','step_snow0','step_snow1','step_snow2'];
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png',

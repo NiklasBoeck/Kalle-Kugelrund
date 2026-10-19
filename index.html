@@ -493,8 +493,8 @@ const Music={timer:null,next:0,step:0,song:0,bpm:150,
     while(this.next<ac.currentTime+.15){
       if(this.step%128===0){ this.song=biomeAt(dist*M_PER_UNIT).i }
       const T=TUNES[this.song], st=this.step, t0=this.next, dl=t0-ac.currentTime, e8=60/this.bpm/2;
-      const i16=st%16, bar=Math.floor(st/16), chorus=Math.floor(bar/8)%2===1, pb=bar%4, fill=chorus&&bar%8===7;
-      const tr=boy.mode==='tiny'?12:0, half2=chorus&&T.C2&&bar%8>=4, ch=(half2?T.cC2:chorus?T.cC:T.cV)[pb], line=half2?T.C2:chorus?T.C:T.V;
+      const i16=st%16, bar=Math.floor(st/16), chorus=Math.floor(bar/8)%2===(T.refrainFirst?0:1), pb=bar%4, fill=chorus&&bar%8===7;
+      const tr=boy.mode==='tiny'?12:0, h2=bar%8>=4, ch=(chorus?(h2&&T.cC2||T.cC):(h2&&T.cV2||T.cV))[pb], line=chorus?(h2&&T.C2||T.C):(h2&&T.V2||T.V);
       const nt=d=>this.note(d,T)+tr;
       // drums
       if(chorus&&i16===0&&bar%8===0) noise(1.3,.16,'highpass',6000,2500,dl,musicBus);                 // crash into the chorus
@@ -511,7 +511,7 @@ const Music={timer:null,next:0,step:0,song:0,bpm:150,
       else T.comp(i16,ch,nt,dl,e8);
       // melody
       if(i16%2===0){ const k=pb*8+i16/2, n=line[k];
-        if(n!==null&&n!==undefined&&n!==HOLD){ let len=1; while(k+len<32&&line[k+len]===HOLD)len++; leadNote(T,mtof(nt(n)),len*e8,dl,t0) } }
+        if(n!==null&&n!==undefined&&n!==HOLD){ let len=1; while(k+len<32&&line[k+len]===HOLD)len++; leadNote(T,mtof(nt(n)+(T.oct||0)),len*e8,dl,t0) } }
       if(T.extra) T.extra(i16,dl,t0,chorus,bar,ch,nt);
       this.bpm=Math.min(182,(T.bpm+level*1.5)*(boy.mode==='jet'?1.08:1)*(boy.mode==='clock'?.75:1));
       this.next+=60/this.bpm/4; this.step++;
@@ -544,8 +544,9 @@ const TUNES=[ // index = biome
     cC:[3,2,1,0], C:mel('7 _ 6 5 6 _ 5 4 | 5 _ 4 3 4 _ 3 2 | 3 _ 2 1 2 _ 1 0 | 1 _ 2 _ 0 _ . .'),
     extra:(i,dl)=>{ const c='d..t.tk.d..t.t.t'[i]; if(c==='d')tone(140,90,.12,'sine',.25,dl,musicBus); if(c==='t'){noise(.04,.1,'bandpass',3500,3000,dl,musicBus,2)} if(c==='k')tone(300,200,.06,'sine',.14,dl,musicBus) } }, // darbuka
   { // Winternacht: Jingle Bells as a rock cover, lead guitar plus sleigh bells
-    root:64,scale:[0,2,4,5,7,9,11],bpm:156,lead:'guitar',bass:bassPump,comp:compStrum,rock:true,four:true,
-    cV:[0,0,3,4], V:mel('4 2 1 0 4 _ _ . | 4 2 1 0 5 _ _ . | 5 3 2 1 6 _ _ . | 7 7 6 4 5 _ _ .'),       // Dashing through the snow
+    root:64,scale:[0,2,4,5,7,9,11],bpm:144,lead:'guitar',oct:12,refrainFirst:true,bass:bassPump,comp:compStrum,rock:true,four:true,
+    cV:[0,0,3,4], V:mel('4 2 1 0 4 _ _ . | 4 2 1 0 5 _ _ . | 5 3 2 1 6 _ _ . | 4 4 3 1 2 _ _ .'),       // Dashing through the snow
+    cV2:[0,0,3,0], V2:mel('4 2 1 0 4 _ _ . | 4 2 1 0 5 _ 5 . | 5 3 2 1 4 4 4 4 | 5 4 3 1 0 _ _ .'),     // ... a sleighing song tonight
     cC:[0,0,3,4], C:mel('2 2 2 _ 2 2 2 _ | 2 4 0 1 2 _ _ _ | 3 3 3 3 3 2 2 2 | 2 1 1 2 1 _ 4 _'),       // Jingle bells, jingle bells
     cC2:[0,0,3,0], C2:mel('2 2 2 _ 2 2 2 _ | 2 4 0 1 2 _ _ _ | 3 3 3 3 3 2 2 2 | 4 4 3 1 0 _ _ _'),
     extra:(i,dl)=>{ noise(.05,i%2?.06:.035,'bandpass',7200,7000,dl,musicBus,6) } },                         // sleigh bells
@@ -573,7 +574,8 @@ function leadNote(T,f,dur,dl,t0){
   if(L==='flute'){ const o=tone(f,f,dur*.95,'triangle',.11,dl,musicBus); if(o){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=5.5;lg.gain.value=f*.012;l.connect(lg);lg.connect(o.frequency);l.start(t0);l.stop(t0+dur)} return }
   if(L==='guitar'){ driveBus(); const g=ac.createGain(); g.gain.setValueAtTime(.6,t0); g.gain.setTargetAtTime(.0001,t0+dur*.92,.03); g.connect(gLead);   // screaming lead guitar with vibrato
     const l=ac.createOscillator(),lg=ac.createGain(); l.frequency.value=6; lg.gain.value=f*.012; l.connect(lg);
-    for(const d of [-7,7]){const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=f; o.detune.value=d; lg.connect(o.frequency); o.connect(g); o.start(t0); o.stop(t0+dur+.15)}
+    for(const d of [-7,7]){const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.setValueAtTime(f*.94,t0); o.frequency.exponentialRampToValueAtTime(f,t0+.05); o.detune.value=d; lg.connect(o.frequency); o.connect(g); o.start(t0); o.stop(t0+dur+.15)}
+    if(dur>.3){const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=f/1.5; o.connect(g); o.start(t0); o.stop(t0+dur+.15)}   // power fifth under held notes
     l.start(t0); l.stop(t0+dur+.15); return }
   if(L==='brass'){ tone(f,f,dur*.9,'sawtooth',.04,dl,musicBus); tone(f*1.005,f*1.005,dur*.9,'square',.025,dl,musicBus); return }
   const o=tone(f,f,dur*.9,'square',.045,dl,musicBus); if(o){const g2=ac.createGain(); g2.gain.value=.35; o.env.connect(g2); g2.connect(echo)}
@@ -583,7 +585,7 @@ function popKick(t0,vol){const o=ac.createOscillator(),g=ac.createGain(); o.type
 let gDrive=null, gLead=null;
 function makeDrive(cut,vol){ const ws=ac.createWaveShaper(), n=1024, cu=new Float32Array(n); for(let i=0;i<n;i++){const x=i/(n-1)*2-1; cu[i]=Math.tanh(x*8)} ws.curve=cu; ws.oversample='4x';
   const fl=ac.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=cut; const g=ac.createGain(); g.gain.value=vol; ws.connect(fl); fl.connect(g); g.connect(musicBus); return ws }
-function driveBus(){ if(!gDrive){gDrive=makeDrive(3200,.09); gLead=makeDrive(4200,.07); const e=ac.createGain(); e.gain.value=.25; gLead.connect(e); e.connect(echo)} }
+function driveBus(){ if(!gDrive){gDrive=makeDrive(3200,.09); gLead=makeDrive(4600,.11); const e=ac.createGain(); e.gain.value=.25; gLead.connect(e); e.connect(echo)} }
 function rockGuitar(t0,f,pm,dur){ // crunchy power chord (root, fifth, octave); pm = palm-muted chug
   driveBus();
   const fl=ac.createBiquadFilter(), g=ac.createGain(); fl.type='lowpass'; fl.frequency.value=pm?800:4500;
