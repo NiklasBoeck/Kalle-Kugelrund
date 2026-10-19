@@ -481,13 +481,13 @@ function jetSound(on){
 
 // ---------- music: a small chiptune band, one song per area ----------
 const SONGS=[
-  {bpm:132,root:60,scale:[0,2,4,5,7,9,11],lead:'square',bassRoots:[0,3,4,0],drums:'k.h.s.h.k.k.s.h.',bell:false},   // Sommerwiese: bouncy major
-  {bpm:112,root:57,scale:[0,2,3,5,7,9,10],lead:'triangle',bassRoots:[0,5,3,4],drums:'k...s..hk.k.s...',bell:false}, // Herbstwald: dorian folk
-  {bpm:120,root:62,scale:[0,1,4,5,7,8,10],lead:'sawtooth',bassRoots:[0,0,1,0],drums:'t.tk.t.ts.tk.t.t',bell:false}, // Wüste: snake-charmer scale
-  {bpm:96, root:64,scale:[0,2,4,7,9,12,14],lead:'sine',bassRoots:[0,3,1,4],drums:'h...h...h...h.h.',bell:true},      // Winternacht: bells
-  {bpm:124,root:58,scale:[0,2,3,5,7,9,10],lead:'square',bassRoots:[0,0,3,4],drums:'k.hsk.hsk.hsk.hs',bell:false},   // Großstadt: funky
-  {bpm:108,root:65,scale:[0,2,4,5,7,9,11],lead:'triangle',bassRoots:[0,4,5,4],drums:'k..s.k.sk..s.k.s',bell:true},  // Am Meer: calypso
-  {bpm:140,root:67,scale:[0,2,4,5,7,9,11],lead:'square',bassRoots:[0,5,3,4],drums:'k.hsk.h.k.hsk.hs',bell:true},   // Schlaraffenland: sugar rush
+  {bpm:132,root:60,scale:[0,2,4,5,7,9,11],lead:'square',bassRoots:[0,3,4,0],drums:'k.h.s.h.k.k.s.h.',tempo:0,bell:false},   // Sommerwiese: bouncy major
+  {bpm:112,root:57,scale:[0,2,3,5,7,9,10],lead:'triangle',bassRoots:[0,5,3,4],drums:'k...s..hk.k.s...',tempo:-4,bell:false}, // Herbstwald: dorian folk
+  {bpm:120,root:62,scale:[0,1,4,5,7,8,10],lead:'sawtooth',bassRoots:[0,0,1,0],drums:'t.tk.t.ts.tk.t.t',tempo:0,bell:false}, // Wüste: snake-charmer scale
+  {bpm:96, root:64,scale:[0,2,4,7,9,12,14],lead:'sine',bassRoots:[0,3,1,4],drums:'h...h...h...h.h.',tempo:-6,bell:true},      // Winternacht: bells
+  {bpm:124,root:58,scale:[0,2,3,5,7,9,10],lead:'square',bassRoots:[0,0,3,4],drums:'k.hsk.hsk.hsk.hs',tempo:6,bell:false},   // Großstadt: funky
+  {bpm:108,root:65,scale:[0,2,4,5,7,9,11],lead:'triangle',bassRoots:[0,4,5,4],drums:'k..s.k.sk..s.k.s',tempo:-2,bell:true},  // Am Meer: calypso
+  {bpm:140,root:67,scale:[0,2,4,5,7,9,11],lead:'square',bassRoots:[0,5,3,4],drums:'k.hsk.h.k.hsk.hs',tempo:10,bell:true},   // Schlaraffenland: sugar rush
 ];
 const PHRASES=[
   [4,-1,4,-1,5,-1,4,-1, 2,-1,0,-1,2,-1,4,-1, 4,-1,4,-1,5,-1,7,-1, 6,-1,4,-1,-1,-1,-1,-1],
@@ -498,40 +498,47 @@ const PHRASES=[
 const mtof=m=>440*2**((m-69)/12);
 const Music={timer:null,next:0,step:0,song:0,bpm:150,
   start(){ if(!ac||this.timer)return; this.next=ac.currentTime+.08; this.step=0;
-    musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(state==='menu'?.45:.8,ac.currentTime,.4);
+    musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(state==='menu'?.45:.7,ac.currentTime,.4);
     this.timer=setInterval(()=>this.tick(),25) },
   stop(fade=.3){ if(!ac)return; musicBus.gain.setTargetAtTime(0,ac.currentTime,fade); clearInterval(this.timer); this.timer=null },
   note(d,s){const sc=s.scale, o=Math.floor(d/7), k=((d%7)+7)%7; return s.root+sc[k]+12*o},
-  // 16-bar cycle: 8 bars hard techno (distorted kick, rumble, acid, claps, riser), then 8 bars rock (power-chord riffs, backbeat), crashes every 4 bars
+  // 16-bar cycle: 8 bars hard techno (distorted kick, rumble, acid, claps, riser), then 8 bars rock (power-chord riffs, backbeat), crashes every 4 bars.
+  // Every world keeps that style but has its own key and scale, tempo, melody hook and extra percussion (see WORLD_BEAT).
   tick(){
     if(this.next<ac.currentTime-.2)this.next=ac.currentTime+.02;
     while(this.next<ac.currentTime+.15){
       if(this.step%64===0){ this.song=biomeAt(dist*M_PER_UNIT).i }
       const s=SONGS[this.song], st=this.step, t0=this.next, dl=t0-ac.currentTime;
-      const i16=st%16, bar=Math.floor(st/16), cyc=bar%16, tr=boy.mode==='tiny'?12:0, root=s.root-12+tr;
+      const i16=st%16, bar=Math.floor(st/16), cyc=bar%16, tr=boy.mode==='tiny'?12:0, root=s.root-12+tr, rock=cyc>=8;
       if(i16===0&&cyc%4===0&&st>0){ noise(1.6,.24,'highpass',6000,2500,dl,musicBus); noise(.5,.16,'bandpass',4200,3000,dl,musicBus,3); if(cyc%8===0)techKick(t0,1.2) } // crash (and a trashy china on top)
-      if(cyc>=8) this.rock(st,t0,dl,i16,cyc-8,root);
-      else this.techno(st,t0,dl,i16,bar,cyc===7,root);
-      this.bpm=Math.min(190,(166+level*3)*(boy.mode==='jet'?1.08:1)*(boy.mode==='clock'?.75:1));
+      if(rock) this.rock(s,st,t0,dl,i16,cyc-8,root);
+      else this.techno(s,st,t0,dl,i16,bar,cyc===7,root);
+      WORLD_BEAT[this.song](this,s,i16,dl,t0,root,rock,cyc);
+      // melody hook of the world: its own instrument over the techno, a screaming guitar lead over the rock
+      const hook=rock?cyc-8>=2&&cyc-8<7:cyc>=4&&cyc<7, d=PHRASES[(Math.floor(st/32)+this.song)%4][st%32];
+      if(hook&&d>=0){ const m=this.note(d,s)+tr;
+        if(rock) rockLead(t0,mtof(m),60/this.bpm*.5);
+        else { const f=mtof(m+(s.bell?12:0)), o=tone(f,f,s.bell?.4:.14,s.lead,s.lead==='sine'||s.lead==='triangle'?.09:.045,dl,musicBus); if(o){const g2=ac.createGain(); g2.gain.value=.5; o.connect(g2); g2.connect(echo)} } }
+      this.bpm=Math.min(195,(166+s.tempo+level*3)*(boy.mode==='jet'?1.08:1)*(boy.mode==='clock'?.75:1));
       this.next+=60/this.bpm/4; this.step++;
     }
   },
-  techno(st,t0,dl,i16,bar,brk,root){
+  techno(s,st,t0,dl,i16,bar,brk,root){
     if(brk&&i16===0) noise(60/this.bpm*4,.16,'bandpass',300,8000,dl,musicBus,5);                     // riser
     if(!brk){
       if(i16%4===0) techKick(t0, 1.15);
-      else techRumble(t0, mtof(root-12+(i16%4===2?0:7)));
+      else techRumble(t0, mtof(root-12+(i16%4===2?0:snap(7,s))));
     }else if(i16%2===0||i16>=12) techKick(t0,.3+i16/22);                                             // kick roll into the drop
     if(i16%4===2) noise(.11,.11,'highpass',7500,6000,dl,musicBus);                                     // open hat offbeat
     else noise(.025,.05,'highpass',9000,9000,dl,musicBus);                                             // closed hat 16ths
     if((i16===4||i16===12)&&!brk){ for(let k=0;k<3;k++) noise(.08,.26,'bandpass',1700,1100,dl+k*.011,musicBus,2) }
     const pat=ACID[this.song%ACID.length], n=pat[i16];
-    if(n!==null&&(!brk||i16<8)){ const sweep=.5-.5*Math.cos((st%256)/256*TAU); techAcid(t0,mtof(root+n),st%3===0,300+3200*sweep,60/this.bpm*(pat[(i16+1)%16]===null?.45:.24)) }
-    if(bar%2===0&&(i16===0||i16===6||i16===10)&&!brk) [0,3,7].forEach(k=>{const f=mtof(root+12+k); const o=tone(f,f,.1,'sawtooth',.04,dl,musicBus); if(o){const g2=ac.createGain(); g2.gain.value=.6; o.connect(g2); g2.connect(echo)}});
+    if(n!==null&&(!brk||i16<8)){ const sweep=.5-.5*Math.cos((st%256)/256*TAU); techAcid(t0,mtof(root+snap(n,s)),st%3===0,300+3200*sweep,60/this.bpm*(pat[(i16+1)%16]===null?.45:.24)) }
+    if(bar%2===0&&(i16===0||i16===6||i16===10)&&!brk) [0,2,4].forEach(k=>{const f=mtof(this.note(k,s)-12+(root-s.root+12)); const o=tone(f,f,.1,'sawtooth',.04,dl,musicBus); if(o){const g2=ac.createGain(); g2.gain.value=.6; o.connect(g2); g2.connect(echo)}});
   },
-  rock(st,t0,dl,i16,rb,root){
+  rock(s,st,t0,dl,i16,rb,root){
     const fill=rb===7, riff=RIFFS[(Math.floor(rb/2)+this.song)%RIFFS.length], n=riff[i16];
-    if(n!==null&&!(fill&&i16>=8)) rockGuitar(t0,mtof(root-12+Math.abs(n)),n<0||Object.is(n,-0),60/this.bpm*(riff[(i16+1)%16]===null?.5:.24));
+    if(n!==null&&!(fill&&i16>=8)) rockGuitar(t0,mtof(root-12+snap(Math.abs(n),s)),n<0||Object.is(n,-0),60/this.bpm*(riff[(i16+1)%16]===null?.5:.24));
     if(!fill){
       if(i16===0||i16===7||i16===8||i16===10) techKick(t0,1);
       if(i16===4||i16===12) rockSnare(dl,1);
@@ -539,6 +546,26 @@ const Music={timer:null,next:0,step:0,song:0,bpm:150,
     }else{ if(i16<8&&i16%4===0) techKick(t0,1); if(i16>=8) rockSnare(dl,.5+(i16-8)/14) }                 // snare fill
   },
 };
+// move a semitone offset onto the nearest note of the world's scale, so riffs sound major in summer and oriental in the desert
+function snap(n,s){const o=Math.floor(n/12), r=n-o*12; let best=0; for(const v of s.scale) if(v<12&&Math.abs(v-r)<Math.abs(best-r)) best=v; return o*12+best}
+// extra percussion per world, indexed like BIOMES
+const WORLD_BEAT=[
+  (M,s,i,dl)=>{ if(i%4===2){tone(560,560,.07,'square',.05,dl,musicBus); tone(845,845,.07,'square',.035,dl,musicBus)} },              // Sommerwiese: cowbell
+  (M,s,i,dl,t0,root,rock,cyc)=>{ if(cyc%2===1&&i>=12) tone([200,170,140,110][i-12],60,.2,'sine',.35,dl,musicBus) },                   // Herbstwald: tom rolls
+  (M,s,i,dl)=>{ const ch='d..t.tk.d..t.t.t'[i];                                                                                      // Wüste: darbuka
+    if(ch==='d') tone(140,90,.12,'sine',.32,dl,musicBus); if(ch==='t'){noise(.04,.12,'bandpass',3500,3000,dl,musicBus,2); tone(420,380,.05,'sine',.1,dl,musicBus)} if(ch==='k') tone(300,200,.06,'sine',.18,dl,musicBus) },
+  (M,s,i,dl,t0,root)=>{ noise(.05,i%2?.07:.04,'bandpass',7200,7000,dl,musicBus,6); if(i===0){const f=mtof(root+36); const o=tone(f,f,.8,'sine',.06,dl,musicBus); if(o)o.connect(echo)} }, // Winternacht: sleigh bells
+  (M,s,i,dl,t0,root,rock,cyc)=>{ if(cyc===7&&(i===0||i===8)) tone(i?1300:700,i?700:1300,60/M.bpm*2,'sawtooth',.04,dl,musicBus);       // Großstadt: siren in the break, metal clank
+    if(i===14){noise(.06,.15,'bandpass',5000,4500,dl,musicBus,8); tone(1250,1240,.15,'square',.025,dl,musicBus)} },
+  (M,s,i,dl,t0,root,rock)=>{ if(rock&&i%4===2) [0,2,4].forEach(k=>{const f=mtof(M.note(k,s)); tone(f,f,.05,'square',.03,dl,musicBus)}) },   // Am Meer: ska skank on the offbeats
+  (M,s,i,dl)=>{ const f=mtof(M.note([0,2,4,7,4,2,7,9][i%8],s)+12); const o=tone(f,f,.08,'sine',.035,dl,musicBus); if(o)o.connect(echo) },    // Schlaraffenland: sugar arpeggio
+];
+function rockLead(t0,f,dur){ // a single distorted lead note one octave up, with a little vibrato
+  if(!gDrive)rockGuitar(t0,f,true,.001);
+  const o=ac.createOscillator(), g=ac.createGain(), l=ac.createOscillator(), lg=ac.createGain(); o.type='sawtooth'; o.frequency.value=f*2;
+  l.frequency.value=6; lg.gain.value=f*.03; l.connect(lg); lg.connect(o.frequency);
+  g.gain.setValueAtTime(.35,t0); g.gain.setTargetAtTime(.0001,t0+dur*.8,.05); o.connect(g); g.connect(gDrive); o.start(t0); o.stop(t0+dur+.2); l.start(t0); l.stop(t0+dur+.2);
+}
 // rock riffs in semitones above the low root; negative = palm-muted chug
 const RIFFS=[
   [0,-0,-0,0, -0,-0,3,null, -0,-0,5,null, 3,null,0,null],
