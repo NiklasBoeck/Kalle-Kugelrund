@@ -1923,6 +1923,13 @@ applyLook(); reset(); speed=200;
 requestAnimationFrame(frame);
 })();
 </script>
-<script>if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))}</script>
+<script>
+// service worker: check for a new version on every start and when the app comes back; a fresh version reloads the page once, but only in the first seconds or while hidden
+if("serviceWorker" in navigator){
+  const t0=Date.now(); let reloaded=false;
+  addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).then(r=>{r.update();document.addEventListener("visibilitychange",()=>{if(!document.hidden)r.update()})}).catch(()=>{}));
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!reloaded&&(Date.now()-t0<15000||document.hidden)){reloaded=true;location.reload()}});
+}
+</script>
 </body>
 </html>
