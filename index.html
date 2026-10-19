@@ -496,42 +496,58 @@ const PHRASES=[
   [9,-1,7,-1,8,-1,7,-1, 5,-1,4,-1,2,-1,4,-1, 5,4,2,-1,0,-1,2,-1, 0,-1,-1,-1,-1,-1,-1,-1],
 ];
 const mtof=m=>440*2**((m-69)/12);
-const Music={timer:null,next:0,step:0,song:0,
+const Music={timer:null,next:0,step:0,song:0,bpm:150,
   start(){ if(!ac||this.timer)return; this.next=ac.currentTime+.08; this.step=0;
     musicBus.gain.cancelScheduledValues(ac.currentTime); musicBus.gain.setTargetAtTime(state==='menu'?.35:.5,ac.currentTime,.4);
     this.timer=setInterval(()=>this.tick(),25) },
   stop(fade=.3){ if(!ac)return; musicBus.gain.setTargetAtTime(0,ac.currentTime,fade); clearInterval(this.timer); this.timer=null },
   note(d,s){const sc=s.scale, o=Math.floor(d/7), k=((d%7)+7)%7; return s.root+sc[k]+12*o},
+  // hard techno: distorted kick on every beat, rumble, acid bass, offbeat hats, claps, stabs and a break with riser every 16 bars
   tick(){
-    const s0=SONGS[this.song];
     if(this.next<ac.currentTime-.2)this.next=ac.currentTime+.02;
     while(this.next<ac.currentTime+.15){
       if(this.step%64===0){ this.song=biomeAt(dist*M_PER_UNIT).i }
-      const s=SONGS[this.song], st=this.step, t0=this.next;
-      const bar=Math.floor(st/16)%4, i16=st%16;
-      const tr=boy.mode==='tiny'?12:0;
-      // melody: alternate phrases, a little different per area
-      const ph=PHRASES[(Math.floor(st/32)+this.song)%4][st%32];
-      if(ph>=0){const f=mtof(this.note(ph,s)+tr+12*(s.bell?1:0)); const dur=s.bell?.6:.16;
-        const o=tone(f,f,dur,s.lead,s.lead==='sawtooth'?.035:s.lead==='square'?.045:.08,t0-ac.currentTime,musicBus);
-        if(o&&ac){ const g2=ac.createGain(); g2.gain.value=.5; o.connect(g2); g2.connect(echo); }
-        if(s.lead==='triangle'&&o){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=5.5;lg.gain.value=f*.012;l.connect(lg);lg.connect(o.frequency);l.start(t0);l.stop(t0+dur)} }
-      // bass
-      const root=s.bassRoots[bar];
-      if(i16%4===0||(i16%4===2&&s.bpm>110)){const d=i16%8===0?root:root+4; const f=mtof(this.note(d,s)-24+tr); tone(f,f,.18,'triangle',.16,t0-ac.currentTime,musicBus)}
-      // harmony pad on bar start
-      if(i16===0){[0,2,4].forEach(k=>{const f=mtof(this.note(root+k,s)-12+tr);tone(f,f,60/s.bpm*3.5,'sine',.025,t0-ac.currentTime,musicBus)})}
-      // drums
-      const dch=s.drums[i16], dl=t0-ac.currentTime;
-      if(dch==='k'){tone(150,45,.14,'sine',.35,dl,musicBus)}
-      if(dch==='s'){noise(.12,.12,'bandpass',1800,1200,dl,musicBus);tone(220,160,.06,'triangle',.06,dl,musicBus)}
-      if(dch==='h'||(boy.mode==='jet'&&i16%2===1)){noise(.03,.05,'highpass',7000,7000,dl,musicBus)}
-      if(dch==='t'){const f=i16%4===0?180:260;tone(f,f*.7,.12,'sine',.18,dl,musicBus)}
-      const bpm=s.bpm*(1+Math.min(.18,(speed-270)/2000))*(boy.mode==='jet'?1.2:1);
-      this.next+=60/bpm/4; this.step++;
+      const s=SONGS[this.song], st=this.step, t0=this.next, dl=t0-ac.currentTime;
+      const i16=st%16, bar=Math.floor(st/16), b16=bar%16, tr=boy.mode==='tiny'?12:0;
+      const brk=b16===15, root=s.root-12+tr;
+      if(i16===0&&b16===0&&st>0) noise(1.4,.14,'highpass',6000,2500,dl,musicBus);                      // crash after the break
+      if(brk&&i16===0) noise(60/this.bpm*4,.1,'bandpass',300,7000,dl,musicBus,5);                      // riser
+      if(!brk){
+        if(i16%4===0) techKick(t0, i16===0?1:.9);
+        else techRumble(t0, mtof(root-12+(i16%4===2?0:7)));
+      }else if(i16>=8&&i16%2===0) techKick(t0,.25+i16/40);                                              // snare-roll style kick build
+      if(i16%4===2) noise(.11,.075,'highpass',7500,6000,dl,musicBus);                                   // open hat offbeat
+      else noise(.025,.03,'highpass',9000,9000,dl,musicBus);                                            // closed hat 16ths
+      if((i16===4||i16===12)&&!brk){ for(let k=0;k<3;k++) noise(.07,.16,'bandpass',1700,1100,dl+k*.011,musicBus,2) }
+      // acid line: one of four patterns per world, accents in threes against the four-on-the-floor
+      const pat=ACID[this.song%ACID.length], n=pat[i16];
+      if(n!==null&&(!brk||i16<8)){ const sweep=.5-.5*Math.cos((st%256)/256*TAU); techAcid(t0,mtof(root+n),st%3===0,260+2600*sweep,60/this.bpm*(pat[(i16+1)%16]===null?.45:.24)) }
+      // minor stab chords every other bar
+      if(bar%2===0&&(i16===0||i16===10)&&!brk) [0,3,7].forEach(k=>{const f=mtof(root+12+k); const o=tone(f,f,.1,'square',.025,dl,musicBus); if(o){const g2=ac.createGain(); g2.gain.value=.6; o.connect(g2); g2.connect(echo)}});
+      this.bpm=Math.min(172,(148+level*3)*(boy.mode==='jet'?1.1:1)*(boy.mode==='clock'?.75:1));
+      this.next+=60/this.bpm/4; this.step++;
     }
   }
 };
+const ACID=[
+  [0,0,12,0, 0,3,0,12, 0,0,7,0, 15,0,12,null],
+  [0,null,0,12, null,0,10,0, 0,null,3,0, 12,0,7,5],
+  [0,12,0,0, 13,0,12,0, 0,7,0,12, 0,10,0,13],
+  [0,0,null,0, 7,0,null,12, 0,0,15,null, 12,10,7,3],
+];
+let tDrive=null;
+function techDrive(){ // soft clipper so kick and bass sound fat and dirty
+  if(tDrive)return tDrive; const ws=ac.createWaveShaper(), n=1024, cu=new Float32Array(n);
+  for(let i=0;i<n;i++){const x=i/(n-1)*2-1; cu[i]=Math.tanh(x*3.5)} ws.curve=cu; ws.oversample='2x';
+  const g=ac.createGain(); g.gain.value=.5; ws.connect(g); g.connect(musicBus); return tDrive=ws;
+}
+function techKick(t0,vol){const o=ac.createOscillator(),g=ac.createGain(); o.type='sine'; o.frequency.setValueAtTime(190,t0); o.frequency.exponentialRampToValueAtTime(44,t0+.11);
+  g.gain.setValueAtTime(vol,t0); g.gain.exponentialRampToValueAtTime(.001,t0+.3); o.connect(g); g.connect(techDrive()); o.start(t0); o.stop(t0+.32)}
+function techRumble(t0,f){const o=ac.createOscillator(),fl=ac.createBiquadFilter(),g=ac.createGain(); o.type='triangle'; o.frequency.value=f; fl.type='lowpass'; fl.frequency.value=180;
+  g.gain.setValueAtTime(.3,t0); g.gain.exponentialRampToValueAtTime(.001,t0+.1); o.connect(fl); fl.connect(g); g.connect(techDrive()); o.start(t0); o.stop(t0+.11)}
+function techAcid(t0,f,acc,cut,dur){const o=ac.createOscillator(),fl=ac.createBiquadFilter(),g=ac.createGain(); o.type='sawtooth'; o.frequency.value=f;
+  fl.type='lowpass'; fl.Q.value=acc?18:10; fl.frequency.setValueAtTime(Math.min(9000,cut*(acc?2.3:1.3)),t0); fl.frequency.exponentialRampToValueAtTime(Math.max(90,cut*.22),t0+dur);
+  g.gain.setValueAtTime(acc?.17:.1,t0); g.gain.exponentialRampToValueAtTime(.001,t0+dur); o.connect(fl); fl.connect(g); g.connect(techDrive()); o.start(t0); o.stop(t0+dur+.02)}
 function jingle(){ // short tune for a new area
   if(!ac)return; [0,4,7,12].forEach((k,i)=>tone(mtof(72+k),mtof(72+k),.14,'square',.05,i*.09));
 }
