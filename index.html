@@ -349,7 +349,7 @@ function spawnObstacle(){
     const kind=pick(AIR_OBS[b]);
     const [w,h]=obsSize(kind);
     const hang = kind==='branch'||kind==='icicles'||!!(OBS[kind]&&OBS[kind].hang);
-    o={kind,air:true,x:W+30,w,h:hang?AIR_BOTTOM:h,y:hang?0:AIR_BOTTOM-h,ph:rand(0,6)};
+    o={kind,air:true,x:W+30,w,h:hang?AIR_BOTTOM:h,y:hang?0:AIR_BOTTOM-h,ph:rand(0,6),col:!hang};  // col: a swarm reaching up to the sky, so it can't be jumped over
     if(Math.random()<.45) for(let i=0;i<3;i++) items.push({type:'donut',x:o.x+o.w/2+(i-1)*30,y:GY-14,r:11,ph:rand(0,6)});
   }else{
     const kind=pick(GROUND_OBS[b]);
@@ -860,6 +860,7 @@ function update(dt){
     if(boy.inv<=0) for(const o of obstacles){
       const ix=o.air?6:5, iy=4;
       const ob={x:o.x+ix,y:o.y+iy,w:o.w-ix*2,h:o.h-iy*(o.air?2:1)};
+      if(o.col){ob.h+=ob.y+200; ob.y=-200}
       if(o.kicked)continue;
       if(hb.x<ob.x+ob.w&&hb.x+hb.w>ob.x&&hb.y<ob.y+ob.h&&hb.y+hb.h>ob.y){
         if(boy.mode==='big'){ // giant Kalle just kicks it away
@@ -1797,7 +1798,14 @@ function render(){
     const g=c.createRadialGradient(cx,cy,r*.35,cx,cy,r); g.addColorStop(0,'rgba(255,252,235,'+(.42-darkNow*.12)+')'); g.addColorStop(1,'rgba(255,252,235,0)');
     c.fillStyle=g; c.fillRect(cx-r,cy-r,r*2,r*2);
   }
-  for(const o of obstacles)drawObstacle(o);
+  for(const o of obstacles){
+    if(o.col&&!o.kicked){ // the rest of the swarm, stacked up out of the screen
+      const y0=o.y, x0=o.x, p0=o.ph;
+      for(let k=1;y0-k*(o.h+6)>-o.h-10;k++){o.y=y0-k*(o.h+6); o.x=x0+(k%2?7:-3)+Math.sin(p0*2+k)*3; o.ph=p0+k*.7; drawObstacleBody(o)}
+      o.y=y0; o.x=x0; o.ph=p0;
+    }
+    drawObstacle(o);
+  }
   if(state==='play'&&speed>470){ const now=performance.now(); c.strokeStyle='rgba(255,255,255,.35)'; c.lineWidth=2; c.lineCap='round';
     for(let i=0;i<5;i++){const y=40+((i*71+now*.05)%230), x=(W+200)-((now*(1.2+i*.13))%(W+400)); c.beginPath(); c.moveTo(x,y); c.lineTo(x+60+i*10,y); c.stroke()} }
   drawBoy(); drawParts(); drawFore(b);
